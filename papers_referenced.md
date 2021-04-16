@@ -1,0 +1,2 @@
+- *IoU and Regression of BBox* https://arxiv.org/pdf/1908.03851.pdf
+- *MeshNet* http://gaoyue.org/paper/MeshNet.pdf
