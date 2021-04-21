@@ -30,12 +30,12 @@ class MeshNet(nn.Module):
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Dropout(p=0.5),
-            nn.Linear(256, 9)
+            nn.Linear(256, 7)
         )
 
     def forward(self, centers, corners, normals, neighbor_index, impurity_label):
         centers = torch.cat((centers,impurity_label),dim=1)
-        corners = torch.cat((corners,impurity_label),dim=1)
+        #corners = torch.cat((corners,impurity_label),dim=1)
         #normals = torch.cat((normals,impurity_label),dim=1)
         spatial_fea0 = self.spatial_descriptor(centers)
         structural_fea0 = self.structural_descriptor(corners, normals, neighbor_index, impurity_label)

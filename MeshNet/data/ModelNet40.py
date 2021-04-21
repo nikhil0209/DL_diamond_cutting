@@ -14,12 +14,12 @@ type_to_index_map = {
     'keyboard': 35, 'bookshelf': 36,  'bench': 37, 'table': 38, 'lamp': 39
 }
 '''
-type_to_index_map = {'diamond1':1}
+type_to_index_map = {'diamond':1}
 
 class ModelNet40(data.Dataset):
 
-    def __init__(self, cfg, part='train'):
-        self.root = cfg['data_root']
+    def __init__(self, cfg, root_path, part='train'):
+        self.root = os.path.join(root_path, cfg['data_root'])
         self.augment_data = cfg['augment_data']
         self.max_faces = cfg['max_faces']
         self.part = part
@@ -51,12 +51,15 @@ class ModelNet40(data.Dataset):
         if num_point < self.max_faces:
             fill_face = []
             fill_neighbor_index = []
+            fill_impurity_label = []
             for i in range(self.max_faces - num_point):
                 index = np.random.randint(0, num_point)
                 fill_face.append(face[index])
                 fill_neighbor_index.append(neighbor_index[index])
+                fill_impurity_label.append(impurity_label[index])
             face = np.concatenate((face, np.array(fill_face)))
             neighbor_index = np.concatenate((neighbor_index, np.array(fill_neighbor_index)))
+            impurity_label = np.concatenate((impurity_label, np.array(fill_impurity_label)))
 
         # to tensor
         face = torch.from_numpy(face).float()

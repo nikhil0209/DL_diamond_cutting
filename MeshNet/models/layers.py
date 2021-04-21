@@ -122,7 +122,8 @@ class StructuralDescriptor(nn.Module):
     def __init__(self, cfg):
         super(StructuralDescriptor, self).__init__()
 
-        self.FRC = FaceRotateConvolutionWithImpurity()
+        #self.FRC = FaceRotateConvolutionWithImpurity()
+        self.FRC = FaceRotateConvolution()
         self.FKC = FaceKernelCorrelation(cfg['num_kernel'], cfg['sigma'])
         self.structural_mlp = nn.Sequential(
             nn.Conv1d(64 + 4 + cfg['num_kernel'], 131, 1),

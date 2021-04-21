@@ -2,7 +2,7 @@ import glob as glob
 import numpy as np
 import os
 import trimesh
-
+import math
 
 def find_neighbor(faces, faces_contain_this_vertex, vf1, vf2, except_face):
     for i in (faces_contain_this_vertex[vf1] & faces_contain_this_vertex[vf2]):
@@ -74,21 +74,22 @@ def process_mesh(mesh):
 
 if __name__ == '__main__':
 
-    root = 'diamond'
-    new_root = 'diamond_simplified/'
+    root = '/content/drive/MyDrive/data_4/'
+    new_root = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/diamond_simplified/'
     max_faces = 0
 
     for type in os.listdir(root):
         if '.DS_Store' in type:
             continue
-        for phrase in ['train', 'test']:
+        if '.' in type:
+          continue
+        for phrase in ['train', 'test','val']:
             type_path = os.path.join(root, type)
             phrase_path = os.path.join(type_path, phrase)
-            if not os.path.exists(type_path):
-                os.mkdir(os.path.join(new_root, type))
-            if not os.path.exists(phrase_path):
-                os.mkdir(phrase_path)
-
+            if not os.path.join(new_root, type):
+              os.mkdir(os.path.join(new_root, type))
+            if not os.path.join(new_root, type,phrase):
+              os.mkdir(os.path.join(new_root, type,phrase))
             files_outer = glob.glob(os.path.join(phrase_path, 'outer_sphere*.obj'))
             files_rocks = glob.glob(os.path.join(phrase_path, 'rocks*.obj'))
             files_target = glob.glob(os.path.join(phrase_path, 'box_label*.txt'))
@@ -108,8 +109,11 @@ if __name__ == '__main__':
                 rock_faces, rock_neighbors = process_mesh(mesh)
                 
                 #get corresponding targets
+                #target = (center cordinates, rotation x, rotation y, rotation z, scale x, scale y, scale z)
                 target_file = files_target[files_target_ids_map[files_outer_ids[i]]]
-                targets = np.genfromtxt(target_file,delimiter=',').reshape(-1)
+                targets = np.genfromtxt(target_file,delimiter=',').reshape(-1)[:-2]#since scale is same for x,y,z - pick only one
+                targets[3:6]/=math.pi#scale the rotation values
+        
 
                 #combine faces
                 outer_labels = np.zeros((faces.shape[0],1))

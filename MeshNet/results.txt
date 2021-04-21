@@ -1,0 +1,11 @@
+LR=0.0005, batch size = 16, model = MeshNet_Orig_Diamond
+train Loss: 0.1699
+val Loss: 0.1802
+
+LR=0.0005, batch size = 16, model = MeshNet_Small1
+train Loss: 0.1794
+val Loss: 0.1894
+
+LR=0.0005, batch size = 16, model = MeshNet_Orig_Diamond - With Original FaceRotateConvolution
+train Loss: 0.1649
+val Loss: 0.1681

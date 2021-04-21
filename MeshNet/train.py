@@ -9,25 +9,34 @@ from config import get_train_config
 from data import ModelNet40
 from models import MeshNet
 from utils import append_feature, calculate_map
+from matplotlib import pyplot as plt
 
+root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
 
-cfg = get_train_config()
+cfg = get_train_config(root_path)
 os.environ['CUDA_VISIBLE_DEVICES'] = cfg['cuda_devices']
 use_gpu = torch.cuda.is_available()
 
 data_set = {
-    x: ModelNet40(cfg=cfg['dataset'], part=x) for x in ['train', 'test']
+    x: ModelNet40(cfg=cfg['dataset'], root_path=root_path, part=x) for x in ['train', 'val']
 }
 data_loader = {
     x: data.DataLoader(data_set[x], batch_size=cfg['batch_size'], num_workers=4, shuffle=True, pin_memory=False)
-    for x in ['train', 'test']
+    for x in ['train', 'val']
 }
 
+def save_loss_plot(train_losses,val_losses):
+    plt.plot(range(len(train_losses)),train_losses,label='Train')
+    plt.plot(range(len(val_losses)),val_losses,label='Val')
+    plt.title("Loss Plot")
+    plt.savefig(os.path.join(root_path,"lossPlot.png"))
 
 def train_model(model, criterion, optimizer, scheduler, cfg):
 
     best_loss = 0.0
     best_model_wts = copy.deepcopy(model.state_dict())
+    train_losses = []
+    val_losses = []
 
     for epoch in range(1, cfg['max_epoch']):
 
@@ -35,7 +44,7 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
         print('Epoch: {} / {}'.format(epoch, cfg['max_epoch']))
         print('-' * 60)
 
-        for phrase in ['train', 'test']:
+        for phrase in ['train', 'val']:
 
             if phrase == 'train':
                 scheduler.step()
@@ -73,9 +82,6 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
                         loss.backward()
                         optimizer.step()
 
-                    if phrase == 'test':
-                        ft_all = append_feature(ft_all, feas.detach())
-                        lbl_all = append_feature(lbl_all, targets.detach(), flaten=True)
 
                     running_loss += loss.item() * centers.size(0)
 
@@ -83,15 +89,19 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
 
             if phrase == 'train':
                 print('{} Loss: {:.4f}'.format(phrase, epoch_loss))
+                train_losses.append(epoch_loss)
 
-            if phrase == 'test':
+            if phrase == 'val':
+                val_losses.append(epoch_loss)
                 if epoch_loss < best_loss:
                     best_loss = epoch_loss
                     best_model_wts = copy.deepcopy(model.state_dict())
                 if epoch % 2 == 0:
-                    torch.save(copy.deepcopy(model.state_dict()), 'ckpt_root/{}.pkl'.format(epoch))
+                    torch.save(copy.deepcopy(model.state_dict()), root_path + '/ckpt_root/{}.pkl'.format(epoch))
 
                 print('{} Loss: {:.4f}'.format(phrase, epoch_loss))
+        
+        save_loss_plot(train_losses,val_losses)
 
     return best_model_wts
 
@@ -103,8 +113,8 @@ if __name__ == '__main__':
         model.cuda()
     model = nn.DataParallel(model)
 
-    criterion = nn.MSELoss()
-    #criterion = nn.L1Loss()#TODO switch to L1 after a few epochs when it becomes small enough?
+    #criterion = nn.MSELoss()
+    criterion = nn.L1Loss()#TODO switch to L1 after a few epochs when it becomes small enough?
     optimizer = optim.SGD(model.parameters(), lr=cfg['lr'], momentum=cfg['momentum'], weight_decay=cfg['weight_decay'])
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg['milestones'], gamma=cfg['gamma'])
 

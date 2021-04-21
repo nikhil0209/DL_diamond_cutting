@@ -10,13 +10,13 @@ from config import get_test_config
 from data import ModelNet40
 from models import MeshNet
 from utils import append_feature, calculate_map
-
+root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
 
 cfg = get_test_config()
 os.environ['CUDA_VISIBLE_DEVICES'] = cfg['cuda_devices']
 use_gpu = torch.cuda.is_available()
 
-data_set = ModelNet40(cfg=cfg['dataset'], part='test')
+data_set = ModelNet40(cfg=cfg['dataset'], root_path=root_path, part='test')
 data_loader = data.DataLoader(data_set, batch_size=1, num_workers=4, shuffle=True, pin_memory=False)
 
 
