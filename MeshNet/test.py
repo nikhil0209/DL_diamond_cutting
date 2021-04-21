@@ -12,7 +12,7 @@ from models import MeshNet
 from utils import append_feature, calculate_map
 root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
 
-cfg = get_test_config()
+cfg = get_test_config(root_path)
 os.environ['CUDA_VISIBLE_DEVICES'] = cfg['cuda_devices']
 use_gpu = torch.cuda.is_available()
 
@@ -43,6 +43,9 @@ def test_model(model):
 
         outputs, feas = model(centers, corners, normals, neighbor_index, impurity_label)
         loss = criterion(outputs, targets)
+        test_file_path, _ = data_set.data[i]
+        test_file_label = test_file_path.split('.')[0] + "_prediction.npy"
+        np.save(test_file_label, outputs.detach().cpu().clone().numpy())
         running_loss += loss.item()
     
     epoch_loss = running_loss / len(data_set)
