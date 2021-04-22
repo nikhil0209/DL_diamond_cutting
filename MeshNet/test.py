@@ -17,7 +17,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = cfg['cuda_devices']
 use_gpu = torch.cuda.is_available()
 
 data_set = ModelNet40(cfg=cfg['dataset'], root_path=root_path, part='test')
-data_loader = data.DataLoader(data_set, batch_size=1, num_workers=4, shuffle=True, pin_memory=False)
+data_loader = data.DataLoader(data_set, batch_size=1, num_workers=4, shuffle=False, pin_memory=False)
 
 
 def test_model(model):
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     if use_gpu:
         model.cuda()
     model = nn.DataParallel(model)
-    model.load_state_dict(torch.load(cfg['load_model']))
+    model.load_state_dict(torch.load(os.path.join(root_path,cfg['load_model'])))
     model.eval()
 
     test_model(model)
