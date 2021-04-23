@@ -119,4 +119,4 @@ if __name__ == '__main__':
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg['milestones'], gamma=cfg['gamma'])
 
     best_model_wts = train_model(model, criterion, optimizer, scheduler, cfg)
-    torch.save(best_model_wts, os.path.join(cfg['ckpt_root'], 'MeshNet_best.pkl'))
+    torch.save(best_model_wts, os.path.join(root_path, cfg['ckpt_root'], 'MeshNet_best.pkl'))
