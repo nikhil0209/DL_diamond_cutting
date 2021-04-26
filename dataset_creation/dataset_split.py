@@ -22,8 +22,10 @@ for k, v in splits.items():
     if not os.path.exists(k_root):
         os.mkdir(k_root)
     for i in range(v):
-        suffix = "_"+str(file_count)+".obj"
-        data_files = [x for x in files if x.endswith(suffix)]
+        suffix1 = "_"+str(file_count)+".obj"
+        suffix2 = "_"+str(file_count)+".mtl"
+        suffix3 = "_"+str(file_count)+".txt"
+        data_files = [x for x in files if x.endswith(suffix1) or x.endswith(suffix2) or x.endswith(suffix3)]
         for f in data_files:
             src = os.path.join(dataset_root,f)
             dst = os.path.join(k_root,f)
