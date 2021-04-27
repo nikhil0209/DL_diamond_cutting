@@ -10,6 +10,12 @@ from data import ModelNet40
 from models import MeshNet
 from utils import append_feature, calculate_map
 from matplotlib import pyplot as plt
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
+def get_unit_diamond_vertices():
+    vertices = np.transpose(np.genfromtxt('/content/drive/MyDrive/DL_diamond_cutting/MeshNet/data/unit_diamond.txt', delimiter=' '))
+    return torch.from_numpy(vertices).float()
 
 root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
 
@@ -25,6 +31,31 @@ data_loader = {
     for x in ['train', 'val']
 }
 
+# def stochastic_loss(criterion, outputs, targets):
+#     scale_actual = targets[:, -1]
+#     scale_predicted = outputs[:, -1]
+#     scale_loss = torch.log(torch.maximum(torch.div(scale_actual, scale_predicted), torch.div(scale_predicted, scale_actual)))
+#     r_x_actual = targets[:, 3]
+#     r_x_predicted = outputs[:, 3]
+#     r_x_loss = 1 - torch.cos(torch.sub(r_x_actual, r_x_predicted))
+#     r_y_actual = targets[:, 4]
+#     r_y_predicted = outputs[:, 4]
+#     r_y_loss = 1 - torch.cos(torch.sub(r_y_actual, r_y_predicted))
+#     r_z_actual = targets[:, 5]
+#     r_z_predicted = outputs[:, 5]
+#     r_z_loss = 1 - torch.cos(torch.sub(r_z_actual, r_z_predicted))
+#     translation_loss = nn.L1Loss()(outputs[:,0:3], targets[:,0:3])
+#     loss = scale_loss + r_x_loss + r_y_loss + r_z_loss + translation_loss
+#     return loss
+
+def point_wise_L1_loss(outputs, targets, unit_diamond_vertices):
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    r_target = torch.from_numpy(R.from_euler('xyz', [[targets[0, 3], targets[0, 4], targets[0, 5]]]).as_matrix()).float().to(device)
+    target_vertices = torch.mul(targets[0, -1], (torch.matmul(r_target, unit_diamond_vertices))) + torch.reshape(targets[0, 0:3], (3, 1))
+    r_output = torch.from_numpy(R.from_euler('xyz', [[outputs[0, 3], outputs[0, 4], outputs[0, 5]]]).as_matrix()).float().to(device)
+    output_vertices = torch.mul(outputs[0, -1], (torch.matmul(r_output, unit_diamond_vertices))) + torch.reshape(outputs[0, 0:3], (3, 1))
+    return nn.L1Loss(reduction='mean')(torch.transpose(target_vertices, 0, 1), torch.transpose(output_vertices, 0, 1))
+
 def save_loss_plot(train_losses,val_losses):
     plt.plot(range(len(train_losses)),train_losses,label='Train')
     plt.plot(range(len(val_losses)),val_losses,label='Val')
@@ -37,13 +68,12 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
     best_model_wts = copy.deepcopy(model.state_dict())
     train_losses = []
     val_losses = []
-
+    unit_diamond_vertices = get_unit_diamond_vertices()
     for epoch in range(1, cfg['max_epoch']):
 
         print('-' * 60)
         print('Epoch: {} / {}'.format(epoch, cfg['max_epoch']))
         print('-' * 60)
-
         for phrase in ['train', 'val']:
 
             if phrase == 'train':
@@ -66,6 +96,7 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
                     neighbor_index = Variable(torch.cuda.LongTensor(neighbor_index.cuda()))
                     targets = Variable(torch.cuda.FloatTensor(targets.cuda()))
                     impurity_label = Variable(torch.cuda.FloatTensor(impurity_label.cuda()))
+                    unit_diamond_vertices = Variable(torch.cuda.FloatTensor(unit_diamond_vertices.cuda()))
                 else:
                     centers = Variable(torch.FloatTensor(centers))
                     corners = Variable(torch.FloatTensor(corners))
@@ -73,11 +104,14 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
                     neighbor_index = Variable(torch.LongTensor(neighbor_index))
                     targets = Variable(torch.FloatTensor(targets))
                     impurity_label = Variable(torch.FloatTensor(impurity_label))
-
+                    unit_diamond_vertices = Variable(torch.FloatTensor(unit_diamond_vertices))
+                    
                 with torch.set_grad_enabled(phrase == 'train'):
+                    eps = 1e-12
                     outputs, feas = model(centers, corners, normals, neighbor_index, impurity_label)
-                    loss = criterion(outputs, targets)
-
+                    #loss = criterion(outputs, targets)
+                    #loss = stochastic_loss(criterion, outputs, targets)
+                    loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
                     if phrase == 'train':
                         loss.backward()
                         optimizer.step()
@@ -112,9 +146,9 @@ if __name__ == '__main__':
     if use_gpu:
         model.cuda()
     model = nn.DataParallel(model)
-
-    #criterion = nn.MSELoss()
-    criterion = nn.L1Loss()#TODO switch to L1 after a few epochs when it becomes small enough?
+    model.load_state_dict(torch.load(os.path.join(root_path, cfg['ckpt_root'], 'MeshNet_best.pkl')))
+    criterion = nn.L1Loss()
+    #criterion = nn.L1Loss()#TODO switch to L1 after a few epochs when it becomes small enough?
     optimizer = optim.SGD(model.parameters(), lr=cfg['lr'], momentum=cfg['momentum'], weight_decay=cfg['weight_decay'])
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg['milestones'], gamma=cfg['gamma'])
 

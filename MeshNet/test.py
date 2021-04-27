@@ -10,6 +10,10 @@ from config import get_test_config
 from data import ModelNet40
 from models import MeshNet
 from utils import append_feature, calculate_map
+#from train import stochastic_loss
+from train import point_wise_L1_loss
+from train import get_unit_diamond_vertices
+
 root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
 
 cfg = get_test_config(root_path)
@@ -19,12 +23,11 @@ use_gpu = torch.cuda.is_available()
 data_set = ModelNet40(cfg=cfg['dataset'], root_path=root_path, part='test')
 data_loader = data.DataLoader(data_set, batch_size=1, num_workers=4, shuffle=False, pin_memory=False)
 
-
 def test_model(model):
-
-    criterion = nn.MSELoss()
+    
+    criterion = nn.L1Loss()
     running_loss = 0.0
-
+    unit_diamond_vertices = get_unit_diamond_vertices()
     for i, (centers, corners, normals, neighbor_index, targets, impurity_label) in enumerate(data_loader):
         if use_gpu:
             centers = Variable(torch.cuda.FloatTensor(centers.cuda()))
@@ -33,6 +36,7 @@ def test_model(model):
             neighbor_index = Variable(torch.cuda.LongTensor(neighbor_index.cuda()))
             targets = Variable(torch.cuda.FloatTensor(targets.cuda()))
             impurity_label = Variable(torch.cuda.FloatTensor(impurity_label.cuda()))
+            unit_diamond_vertices = Variable(torch.cuda.FloatTensor(unit_diamond_vertices.cuda()))
         else:
             centers = Variable(torch.FloatTensor(centers))
             corners = Variable(torch.FloatTensor(corners))
@@ -40,9 +44,11 @@ def test_model(model):
             neighbor_index = Variable(torch.LongTensor(neighbor_index))
             targets = Variable(torch.FloatTensor(targets))
             impurity_label = Variable(torch.FloatTensor(impurity_label))
-
+            unit_diamond_vertices = Variable(torch.FloatTensor(unit_diamond_vertices))
+            
         outputs, feas = model(centers, corners, normals, neighbor_index, impurity_label)
-        loss = criterion(outputs, targets)
+        #loss = criterion(outputs, targets)
+        loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
         test_file_path, _ = data_set.data[i]
         test_file_label = test_file_path.split('.')[0] + "_prediction.npy"
         np.save(test_file_label, outputs.detach().cpu().clone().numpy())
