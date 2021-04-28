@@ -9,7 +9,7 @@ import torch.utils.data as data
 from config import get_test_config
 from data import ModelNet40
 from models import MeshNet
-from utils import point_wise_L1_loss, get_unit_diamond_vertices#, stochastic_loss
+from utils import point_wise_L1_loss, get_unit_diamond_vertices, axis_aligned_miou#, stochastic_loss
 
 root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
 
@@ -28,7 +28,8 @@ def test_model(model):
     running_scale_loss = 0.0
     running_center_loss = 0.0
     running_rotation_loss = 0.0
-    unit_diamond_vertices = get_unit_diamond_vertices()
+    running_miou = 0.0
+    unit_diamond_vertices = get_unit_diamond_vertices(root_path)
 
     for i, (centers, corners, normals, neighbor_index, targets, impurity_label) in enumerate(data_loader):
         if use_gpu:
@@ -54,6 +55,7 @@ def test_model(model):
         scale_loss = criterion(outputs[-1:],targets[-1:])
         center_loss = criterion(outputs[:3],targets[:3])
         rotation_loss = criterion(outputs[3:6],targets[3:6])
+        miou = axis_aligned_miou(outputs,targets)
 
         test_file_path, _ = data_set.data[i]
         test_file_label = test_file_path.split('.')[0] + "_prediction.npy"
@@ -63,18 +65,20 @@ def test_model(model):
         running_scale_loss += scale_loss.item()
         running_center_loss += center_loss.item()
         running_rotation_loss += rotation_loss.item()
+        running_miou += miou.item()
         
     epoch_loss = running_loss / len(data_set)
     epoch_l1_loss = running_l1_loss / len(data_set)
     epoch_scale_loss = running_scale_loss / len(data_set)
     epoch_center_loss = running_center_loss / len(data_set)
     epoch_rotation_loss = running_rotation_loss / len(data_set)
+    epoch_miou = running_miou / len(data_set)
 
     print('Loss: {:.4f}'.format(float(epoch_loss)))
     print('L1 Loss: {:.4f}'.format(float(epoch_l1_loss)))
     print('Scale L1 Loss: {:.4f}'.format(float(epoch_scale_loss)))
     print('Center L1 Loss: {:.4f}'.format(float(epoch_center_loss)))
-    print('Rotaton L1 Loss: {:.4f}'.format(float(epoch_rotation_loss)))
+    print('M IOU: {:.4f}'.format(float(epoch_miou)))
 
 
 if __name__ == '__main__':

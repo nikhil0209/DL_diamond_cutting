@@ -44,3 +44,23 @@ def point_wise_L1_loss(outputs, targets, unit_diamond_vertices):
     loss = nn.MSELoss(reduction='none')(torch.transpose(target_vertices, 1, 2), torch.transpose(output_vertices, 1, 2))
     loss = torch.mean(torch.mean(torch.sum(loss,-1),-1),-1)
     return loss
+
+def axis_aligned_miou(outputs, target):
+    center_o = outputs[:,:3]
+    scale_o = outputs[:,-1:]
+    center_t = target[:,:3]
+    scale_t = target[:,-1:]
+
+
+    intersection_c1 = torch.max(center_o-scale_o,center_t-scale_t)
+    intersection_c2 = torch.min(center_o+scale_o,center_t+scale_t)
+    intersection = torch.max(torch.zeros(intersection_c1.shape),intersection_c2 - intersection_c1)
+    intersection = torch.prod(intersection,-1)
+    union = torch.pow(scale_o*2,3)+torch.pow(scale_t*2,3)
+    union = union.squeeze(-1)-intersection
+    iou = torch.div(intersection,union+1e-5)
+    miou = torch.mean(iou)
+    return miou
+    
+
+
