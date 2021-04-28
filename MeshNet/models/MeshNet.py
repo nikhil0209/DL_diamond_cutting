@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from models import SpatialDescriptor, StructuralDescriptor, MeshConvolution
-
+import math
 
 class MeshNet(nn.Module):
 
@@ -30,7 +30,7 @@ class MeshNet(nn.Module):
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Dropout(p=0.5),
-            nn.Linear(256, 7)
+            nn.Linear(256, 7),
         )
 
     def forward(self, centers, corners, normals, neighbor_index, impurity_label):
@@ -49,8 +49,14 @@ class MeshNet(nn.Module):
         fea = fea.reshape(fea.size(0), -1)
         fea = self.classifier[:-1](fea)
         cls_ = self.classifier[-1:](fea)
-
+        translations = cls_[:,0:3]
+        rotations = cls_[:,3:6]
+        scale = cls_[:,-1]
+        # print(translations.shape)
+        # print(rotations.shape)
+        # print(nn.Sigmoid()(scale).shape)
+        out = torch.cat((translations, rotations, torch.unsqueeze(nn.Sigmoid()(scale), 0)), 1)
         if self.require_fea:
-            return cls_, fea / torch.norm(fea)
+            return out, fea / torch.norm(fea)
         else:
-            return cls_
+            return out

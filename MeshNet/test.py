@@ -10,6 +10,10 @@ from config import get_test_config
 from data import ModelNet40
 from models import MeshNet
 from utils import append_feature, calculate_map
+#from train import stochastic_loss
+from train import point_wise_L1_loss
+from train import get_unit_diamond_vertices
+
 root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
 
 cfg = get_test_config(root_path)
@@ -19,14 +23,15 @@ use_gpu = torch.cuda.is_available()
 data_set = ModelNet40(cfg=cfg['dataset'], root_path=root_path, part='test')
 data_loader = data.DataLoader(data_set, batch_size=1, num_workers=4, shuffle=False, pin_memory=False)
 
-
 def test_model(model):
 
     criterion = nn.L1Loss()
     running_loss = 0.0
+    running_l1_loss = 0.0
     running_scale_loss = 0.0
     running_center_loss = 0.0
     running_rotation_loss = 0.0
+    unit_diamond_vertices = get_unit_diamond_vertices()
 
     for i, (centers, corners, normals, neighbor_index, targets, impurity_label) in enumerate(data_loader):
         if use_gpu:
@@ -36,6 +41,7 @@ def test_model(model):
             neighbor_index = Variable(torch.cuda.LongTensor(neighbor_index.cuda()))
             targets = Variable(torch.cuda.FloatTensor(targets.cuda()))
             impurity_label = Variable(torch.cuda.FloatTensor(impurity_label.cuda()))
+            unit_diamond_vertices = Variable(torch.cuda.FloatTensor(unit_diamond_vertices.cuda()))
         else:
             centers = Variable(torch.FloatTensor(centers))
             corners = Variable(torch.FloatTensor(corners))
@@ -43,29 +49,35 @@ def test_model(model):
             neighbor_index = Variable(torch.LongTensor(neighbor_index))
             targets = Variable(torch.FloatTensor(targets))
             impurity_label = Variable(torch.FloatTensor(impurity_label))
-
+            unit_diamond_vertices = Variable(torch.FloatTensor(unit_diamond_vertices))
+            
         outputs, feas = model(centers, corners, normals, neighbor_index, impurity_label)
-        loss = criterion(outputs, targets)
+        loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
+        l1_loss = criterion(outputs, targets)
         scale_loss = criterion(outputs[-1:],targets[-1:])
         center_loss = criterion(outputs[:3],targets[:3])
         rotation_loss = criterion(outputs[3:6],targets[3:6])
+
         test_file_path, _ = data_set.data[i]
         test_file_label = test_file_path.split('.')[0] + "_prediction.npy"
         np.save(test_file_label, outputs.detach().cpu().clone().numpy())
         running_loss += loss.item()
+        running_l1_loss += l1_loss.item()
         running_scale_loss += scale_loss.item()
         running_center_loss += center_loss.item()
         running_rotation_loss += rotation_loss.item()
         
     epoch_loss = running_loss / len(data_set)
+    epoch_l1_loss = running_l1_loss / len(data_set)
     epoch_scale_loss = running_scale_loss / len(data_set)
     epoch_center_loss = running_center_loss / len(data_set)
     epoch_rotation_loss = running_rotation_loss / len(data_set)
 
     print('Loss: {:.4f}'.format(float(epoch_loss)))
-    print('Loss: {:.4f}'.format(float(epoch_scale_loss)))
-    print('Loss: {:.4f}'.format(float(epoch_center_loss)))
-    print('Loss: {:.4f}'.format(float(epoch_rotation_loss)))
+    print('L1 Loss: {:.4f}'.format(float(epoch_l1_loss)))
+    print('Scale L1 Loss: {:.4f}'.format(float(epoch_scale_loss)))
+    print('Center L1 Loss: {:.4f}'.format(float(epoch_center_loss)))
+    print('Rotaton L1 Loss: {:.4f}'.format(float(epoch_rotation_loss)))
 
 
 if __name__ == '__main__':
