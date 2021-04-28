@@ -22,8 +22,11 @@ data_loader = data.DataLoader(data_set, batch_size=1, num_workers=4, shuffle=Fal
 
 def test_model(model):
 
-    criterion = nn.MSELoss()
+    criterion = nn.L1Loss()
     running_loss = 0.0
+    running_scale_loss = 0.0
+    running_center_loss = 0.0
+    running_rotation_loss = 0.0
 
     for i, (centers, corners, normals, neighbor_index, targets, impurity_label) in enumerate(data_loader):
         if use_gpu:
@@ -43,14 +46,26 @@ def test_model(model):
 
         outputs, feas = model(centers, corners, normals, neighbor_index, impurity_label)
         loss = criterion(outputs, targets)
+        scale_loss = criterion(outputs[-1:],targets[-1:])
+        center_loss = criterion(outputs[:3],targets[:3])
+        rotation_loss = criterion(outputs[3:6],targets[3:6])
         test_file_path, _ = data_set.data[i]
         test_file_label = test_file_path.split('.')[0] + "_prediction.npy"
         np.save(test_file_label, outputs.detach().cpu().clone().numpy())
         running_loss += loss.item()
-    
+        running_scale_loss += scale_loss.item()
+        running_center_loss += center_loss.item()
+        running_rotation_loss += rotation_loss.item()
+        
     epoch_loss = running_loss / len(data_set)
+    epoch_scale_loss = running_scale_loss / len(data_set)
+    epoch_center_loss = running_center_loss / len(data_set)
+    epoch_rotation_loss = running_rotation_loss / len(data_set)
 
     print('Loss: {:.4f}'.format(float(epoch_loss)))
+    print('Loss: {:.4f}'.format(float(epoch_scale_loss)))
+    print('Loss: {:.4f}'.format(float(epoch_center_loss)))
+    print('Loss: {:.4f}'.format(float(epoch_rotation_loss)))
 
 
 if __name__ == '__main__':
