@@ -6,7 +6,7 @@ import math
 # This block is made of a linear transformation (FC layer), 
 # followed by a Leaky RelU, a Group Normalization (optional, depending on enable_group_norm)
 # the Group Normalization (see Wu and He, "Group Normalization", ECCV 2018) creates groups of 32 channels
-def MLP(channels, enable_group_norm=True):
+def MLP(channels, enable_group_norm=False):
     if enable_group_norm:
         num_groups = [0]
         for i in range(1, len(channels)):
@@ -14,10 +14,10 @@ def MLP(channels, enable_group_norm=True):
                 num_groups.append(channels[i]//32)
             else:
                 num_groups.append(1)    
-        return Seq(*[Seq(Lin(channels[i - 1], channels[i]), LeakyReLU(0.2), GroupNorm(num_groups[i], channels[i]))
+        return Seq(*[Seq(Lin(channels[i - 1], channels[i]), Tanh(), GroupNorm(num_groups[i], channels[i]))
                      for i in range(1, len(channels))])
     else:
-        return Seq(*[Seq(Lin(channels[i - 1], channels[i]), LeakyReLU(0.2))
+        return Seq(*[Seq(Lin(channels[i - 1], channels[i]), Tanh())
                      for i in range(1, len(channels))])
 
 
@@ -35,12 +35,12 @@ def MLP(channels, enable_group_norm=True):
 class PointNet(torch.nn.Module):
     def __init__(self, num_input_features, num_output_features):
         super(PointNet, self).__init__()
-        self.mlp1 = MLP([num_input_features, 32, 64, 128, 256, 512])
-        self.linear = Lin(512, num_output_features)
+        self.mlp1 = MLP([num_input_features, 32, 64, 128, 256, 512, 1024, 512, 256, 128, 64, 32])
+        self.linear = Lin(32, num_output_features)
     def forward(self, x):
         mlp1_output = self.mlp1(x)
         linear_output = self.linear(mlp1_output)
-        global_feature,_ = torch.max(linear_output, 0)
+        global_feature, _ = torch.max(linear_output, 0)
         translations = torch.unsqueeze(F.tanh(global_feature[0:3]), 0)
         rotations = torch.unsqueeze((2*math.pi)*F.sigmoid(global_feature[3:6]), 0)
         scale = torch.reshape(torch.unsqueeze(F.sigmoid(global_feature[-1]), 0), (1, 1)) 

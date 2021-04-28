@@ -89,12 +89,12 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
                     eps = 1e-12
                     rock_vertices = torch.reshape(rock_vertices, (-1, 3))
                     outputs = model(rock_vertices)
-                    loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
-                    inverse_loss += inverse_distance_loss(outputs, rock_vertices)
+                    point_loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
+                    inverse_loss = inverse_distance_loss(outputs, rock_vertices)/15000
+                    loss = point_loss + inverse_loss
                     if phrase == 'train':
                         loss.backward()
                         optimizer.step()
-
                     running_loss += loss.item() * targets.size(0)
 
             epoch_loss = running_loss / len(data_set[phrase])
@@ -102,7 +102,7 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
             if phrase == 'train':
                 print('{} Loss: {:.4f}'.format(phrase, epoch_loss))
                 train_losses.append(epoch_loss)
-                print("Training inverse distance loss:", inverse_loss/len(data_set[phrase]))
+                #print("Training inverse distance loss:", inverse_loss/len(data_set[phrase]))
             if phrase == 'val':
                 val_losses.append(epoch_loss)
                 if epoch_loss < best_loss:
@@ -112,7 +112,7 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
                     torch.save(copy.deepcopy(model.state_dict()), root_path + '/checkpoints_root/{}.pkl'.format(epoch))
 
                 print('{} Loss: {:.4f}'.format(phrase, epoch_loss))
-                print("Validation inverse distance loss:", inverse_loss/len(data_set[phrase]))
+                #print("Validation inverse distance loss:", inverse_loss/len(data_set[phrase]))
         save_loss_plot(train_losses,val_losses)
 
     return best_model_wts
