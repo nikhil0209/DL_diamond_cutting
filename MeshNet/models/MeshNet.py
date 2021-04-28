@@ -51,11 +51,8 @@ class MeshNet(nn.Module):
         cls_ = self.classifier[-1:](fea)
         translations = cls_[:,0:3]
         rotations = cls_[:,3:6]
-        scale = cls_[:,-1]
-        # print(translations.shape)
-        # print(rotations.shape)
-        # print(nn.Sigmoid()(scale).shape)
-        out = torch.cat((translations, rotations, torch.unsqueeze(nn.Sigmoid()(scale), 0)), 1)
+        scale = cls_[:,-1:]
+        out = torch.cat((translations, rotations, nn.Sigmoid()(scale)), 1)
         if self.require_fea:
             return out, fea / torch.norm(fea)
         else:

@@ -9,10 +9,7 @@ import torch.utils.data as data
 from config import get_test_config
 from data import ModelNet40
 from models import MeshNet
-from utils import append_feature, calculate_map
-#from train import stochastic_loss
-from train import point_wise_L1_loss
-from train import get_unit_diamond_vertices
+from utils import point_wise_L1_loss, get_unit_diamond_vertices#, stochastic_loss
 
 root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
 
