@@ -1,0 +1,18 @@
+# CUDA
+cuda_devices: '0'   # multi-gpu training is available
+
+# dataset
+dataset:
+  data_root: 'processed_data/'
+
+# result
+ckpt_root: 'checkpoints/'
+
+# train
+lr: 0.0005
+momentum: 0.9
+weight_decay: 0.0005
+batch_size: 1
+max_epoch: 10
+milestones: [30, 60]
+gamma: 0.1

@@ -1,0 +1,10 @@
+# CUDA
+cuda_devices: '0'
+
+# dataset
+dataset:
+  data_root: 'processed_data/'
+
+# model
+load_model: 'checkpoints/PointNet_best.pkl'
+
