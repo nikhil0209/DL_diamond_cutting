@@ -30,25 +30,33 @@ def test_model(model):
     running_rotation_loss = 0.0
     running_miou = 0.0
     unit_diamond_vertices = get_unit_diamond_vertices(root_path)
+    if use_gpu:
+        unit_diamond_vertices = Variable(torch.cuda.FloatTensor(unit_diamond_vertices.cuda()))
+    else:
+        unit_diamond_vertices = Variable(torch.FloatTensor(unit_diamond_vertices))
 
     for i, (input, diamond_center_grid_point, targets, pitch, radius) in enumerate(data_loader):
         if use_gpu:
             input = Variable(torch.cuda.FloatTensor(input.cuda()))
             diamond_center_grid_point = Variable(torch.cuda.LongTensor(diamond_center_grid_point.cuda()))
             targets = Variable(torch.cuda.FloatTensor(targets.cuda()))
+            pitch = torch.tensor(pitch).to(targets)
+            radius = torch.tensor(radius).to(targets)
         else:
             input = Variable(torch.FloatTensor(input))
             diamond_center_grid_point = Variable(torch.LongTensor(diamond_center_grid_point))
             targets = Variable(torch.FloatTensor(targets))
+            pitch = torch.tensor(pitch).to(targets)
+            radius = torch.tensor(radius).to(targets)
         with torch.no_grad():
             center_probs, pred_rot_scale = model(input,return_encoder_features = True)
         model_loss = regression_classification_loss(center_probs, pred_rot_scale, diamond_center_grid_point, targets[:,3:], alpha=0.5)
         outputs = get_output_from_prediction(center_probs, pred_rot_scale, pitch, radius)
         loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
         l1_loss = criterion(outputs, targets)
-        scale_loss = criterion(outputs[-1:],targets[-1:])
-        center_loss = criterion(outputs[:3],targets[:3])
-        rotation_loss = criterion(outputs[3:6],targets[3:6])
+        scale_loss = criterion(outputs[:,-1:],targets[:,-1:])
+        center_loss = criterion(outputs[:,:3],targets[:,:3])
+        rotation_loss = criterion(outputs[:,3:6],targets[:,3:6])
         miou = axis_aligned_miou(outputs,targets)
 
         test_file_path, _ = data_set.data[i]

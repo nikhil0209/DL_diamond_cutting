@@ -110,6 +110,7 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], betas = tuple((0.9, 0.999)), weight_decay=cfg['weight_decay'])
     #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode=scheduler_cfg['mode'], factor=scheduler_cfg['factor'],patience=scheduler_cfg['patience'])
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg['milestones'], gamma=cfg['gamma'])
-
+    for f in os.listdir(root_path + '/ckpt_root/'):
+        os.remove(os.path.join(root_path + '/ckpt_root/', f))
     best_model_wts = train_model(model, optimizer, scheduler, cfg)
     torch.save(best_model_wts, os.path.join(root_path, cfg['ckpt_root'], 'UNet_best.pkl'))

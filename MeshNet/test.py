@@ -21,7 +21,7 @@ data_set = ModelNet40(cfg=cfg['dataset'], root_path=root_path, part='test')
 data_loader = data.DataLoader(data_set, batch_size=1, num_workers=4, shuffle=False, pin_memory=False)
 
 def test_model(model):
-
+    model.eval()
     criterion = nn.L1Loss()
     running_loss = 0.0
     running_l1_loss = 0.0
@@ -48,8 +48,8 @@ def test_model(model):
             targets = Variable(torch.FloatTensor(targets))
             impurity_label = Variable(torch.FloatTensor(impurity_label))
             unit_diamond_vertices = Variable(torch.FloatTensor(unit_diamond_vertices))
-            
-        outputs, feas = model(centers, corners, normals, neighbor_index, impurity_label)
+        with torch.no_grad():
+            outputs, feas = model(centers, corners, normals, neighbor_index, impurity_label)
         loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
         l1_loss = criterion(outputs, targets)
         scale_loss = criterion(outputs[-1:],targets[-1:])

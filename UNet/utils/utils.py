@@ -18,7 +18,7 @@ def save_loss_plot(train_losses,val_losses,root_path):
 def regression_classification_loss(center_probs, rot_scale, center_points, target_scale_and_rotation, alpha = 0.5):
     #binary cross entropy loss for center predictions
     #target vector
-    target = torch.zeros(center_probs.squeeze(1).shape)
+    target = torch.zeros(center_probs.squeeze(1).shape).to(center_probs)
     for i, x in enumerate(center_points):
         target[i,x[0],x[1],x[2]]=1
     center_probs_lin = center_probs.reshape(center_probs.shape[0],-1)
@@ -51,9 +51,9 @@ def axis_aligned_miou(outputs, target):
     return miou
     
 def point_wise_L1_loss(outputs, targets, unit_diamond_vertices):
-    loss = torch.tensor(0.0)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    loss = torch.tensor(0.0).to(device)
     for i in range(outputs.shape[0]):
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         r_target = torch.from_numpy(R.from_euler('xyz', [[targets[i, 3], targets[i, 4], targets[i, 5]]]).as_matrix()).float().to(device)
         target_vertices = torch.mul(targets[i, -1], (torch.matmul(r_target, unit_diamond_vertices))) + torch.reshape(targets[i, 0:3], (3, 1))
         r_output = torch.from_numpy(R.from_euler('xyz', [[outputs[i, 3], outputs[i, 4], outputs[i, 5]]]).as_matrix()).float().to(device)
@@ -82,5 +82,5 @@ def get_output_from_prediction(center_probs, pred_rot_scale, pitch, radius):
     #convert center_idx to a coordinate using center of that voxel
     center = (center_idx-radius)*pitch
 
-    outputs = torch.cat((center.unsqueeze(0),pred_rot_scale),dim=-1)
+    outputs = torch.cat((center.unsqueeze(0).to(pred_rot_scale),pred_rot_scale),dim=-1)
     return outputs
