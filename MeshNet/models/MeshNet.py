@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from models import SpatialDescriptor, StructuralDescriptor, MeshConvolution
-import math
+
 
 class MeshNet(nn.Module):
 
@@ -23,15 +23,38 @@ class MeshNet(nn.Module):
             nn.BatchNorm1d(1024),
             nn.ReLU(),
         )
-        self.classifier = nn.Sequential(
+        self.classifier_scale = nn.Sequential(
             nn.Linear(1024, 512),
             nn.ReLU(),
             nn.Dropout(p=0.5),
             nn.Linear(512, 256),
             nn.ReLU(),
             nn.Dropout(p=0.5),
-            nn.Linear(256, 7),
+            nn.Linear(256, 1)
         )
+
+        self.classifier_rot = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Dropout(p=0.5),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Dropout(p=0.5),
+            nn.Linear(256, 3)
+        )
+
+        self.classifier_center = nn.Sequential(
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Dropout(p=0.5),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Dropout(p=0.5),
+            nn.Linear(256, 3)
+        )
+        self.sig = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+
 
     def forward(self, centers, corners, normals, neighbor_index, impurity_label):
         centers = torch.cat((centers,impurity_label),dim=1)
@@ -44,16 +67,17 @@ class MeshNet(nn.Module):
         spatial_fea2, structural_fea2 = self.mesh_conv2(spatial_fea1, structural_fea1, neighbor_index)
         spatial_fea3 = self.fusion_mlp(torch.cat([spatial_fea2, structural_fea2], 1))
 
-        fea = self.concat_mlp(torch.cat([spatial_fea1, spatial_fea2, spatial_fea3], 1))
-        fea = torch.max(fea, dim=2)[0]
-        fea = fea.reshape(fea.size(0), -1)
-        fea = self.classifier[:-1](fea)
-        cls_ = self.classifier[-1:](fea)
-        translations = cls_[:,0:3]
-        rotations = cls_[:,3:6]
-        scale = cls_[:,-1:]
-        out = torch.cat((translations, rotations, nn.Sigmoid()(scale)), 1)
+        fea_ = self.concat_mlp(torch.cat([spatial_fea1, spatial_fea2, spatial_fea3], 1))
+        fea_ = torch.max(fea_, dim=2)[0]
+        fea_ = fea_.reshape(fea_.size(0), -1)
+        fea = self.classifier_scale[:-1](fea_)
+        cls_ = self.classifier_scale[-1:](fea)
+
+        scale = self.sig(cls_)
+        rotation = self.tanh(self.classifier_rot(fea_))+1
+        center = self.tanh(self.classifier_center(fea_))
+        cls_ = torch.cat((center, rotation, scale),dim=-1)
         if self.require_fea:
-            return out, fea / torch.norm(fea)
+            return cls_, fea / torch.norm(fea)
         else:
-            return out
+            return cls_

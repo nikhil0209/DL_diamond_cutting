@@ -74,8 +74,8 @@ def process_mesh(mesh):
 
 if __name__ == '__main__':
 
-    root = '/content/drive/MyDrive/data_4/'
-    new_root = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/diamond_simplified/'
+    root = '../dataset/'
+    new_root = '../MeshNet/diamond_simplified/'
     max_faces = 0
 
     for type in os.listdir(root):
@@ -111,7 +111,7 @@ if __name__ == '__main__':
                 #get corresponding targets
                 #target = (center cordinates, rotation x, rotation y, rotation z, scale x, scale y, scale z)
                 target_file = files_target[files_target_ids_map[files_outer_ids[i]]]
-                targets = np.genfromtxt(target_file,delimiter=',').reshape(-1)[:-2]#since scale is same for x,y,z - pick only one
+                targets = np.loadtxt(target_file).reshape(-1)[:-2]#since scale is same for x,y,z - pick only one
                 targets[3:6]/=math.pi#scale the rotation values
         
 

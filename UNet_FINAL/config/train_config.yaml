@@ -1,0 +1,57 @@
+# CUDA
+cuda_devices: '0'   # multi-gpu training is available
+
+# dataset
+dataset:
+  data_root: 'augmented_diamond_voxelized_64/'
+  augment_data: true
+  grid: 64
+
+# result
+ckpt_root: 'ckpt/'
+
+# UNet
+UNet:
+  structural_descriptor:
+    num_kernel: 64
+    sigma: 0.2
+  mesh_convolution:
+    aggregation_method: 'Concat'  # Concat/Max/Average
+
+  # model class, e.g. UNet3D, ResidualUNet3D
+  name: UNet3D
+  # number of input channels to the model
+  in_channels: 1
+  # number of output channels
+  out_channels: 5
+  # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
+  layer_order: gcr
+  # number of features at each level of the U-Net
+  f_maps: [32, 64, 128]
+  # number of groups in the groupnorm
+  num_groups: 8
+  # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
+  # this is only relevant during inference, during training the network outputs logits and it is up to the loss function
+  # to normalize with Sigmoid or Softmax
+  final_sigmoid: true
+  # if True applies the final normalization layer (sigmoid or softmax), otherwise the networks returns the output from the final convolution layer; use False for regression problems, e.g. de-noising
+  is_segmentation: False
+
+# train
+lr: 0.000005
+momentum: 0.9
+weight_decay: 0.00001
+batch_size: 1
+max_epoch: 15 #150
+milestones: [30, 60]
+gamma: 0.1
+
+lr_scheduler:
+  # reduce learning rate when evaluation metric plateaus
+  name: ReduceLROnPlateau
+  # use 'max' if eval_score_higher_is_better=True, 'min' otherwise
+  mode: max
+  # factor by which learning rate will be reduced
+  factor: 0.2
+  # number of *validation runs* with no improvement after which learning rate will be reduced
+  patience: 8

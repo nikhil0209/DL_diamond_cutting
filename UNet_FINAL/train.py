@@ -6,34 +6,39 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.utils.data as data
 from config import get_train_config
-from data import ModelNet40
-from models import MeshNet
-from utils import get_unit_diamond_vertices, point_wise_L1_loss, save_loss_plot, point_wise_mse_loss#, stochastic_loss
+from data import UNetData
+from models import UNet3D
+from utils import get_unit_diamond_vertices, save_loss_plot, regression_classification_loss, unet_loss, yolo_loss#, point_wise_L1_loss
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-root_path = '/content/drive/MyDrive/DL_diamond_cutting/MeshNet/'
+root_path = '../UNet/'
 
 cfg = get_train_config(root_path)
 os.environ['CUDA_VISIBLE_DEVICES'] = cfg['cuda_devices']
 use_gpu = torch.cuda.is_available()
 
 data_set = {
-    x: ModelNet40(cfg=cfg['dataset'], root_path=root_path, part=x) for x in ['train', 'val']
+    x: UNetData(cfg=cfg['dataset'], root_path=root_path, part=x) for x in ['train', 'val']
 }
 data_loader = {
     x: data.DataLoader(data_set[x], batch_size=cfg['batch_size'], num_workers=4, shuffle=True, pin_memory=False)
     for x in ['train', 'val']
 }
 
-def train_model(model, criterion, optimizer, scheduler, cfg):
+def train_model(model, optimizer, scheduler, cfg):
 
     best_loss = 0.0
     best_model_wts = copy.deepcopy(model.state_dict())
     train_losses = []
     val_losses = []
     unit_diamond_vertices = get_unit_diamond_vertices(root_path)
-    for epoch in range(1, cfg['max_epoch']+1):
+    if use_gpu:
+        unit_diamond_vertices = Variable(torch.cuda.FloatTensor(unit_diamond_vertices.cuda()))
+    else:
+        unit_diamond_vertices = Variable(torch.FloatTensor(unit_diamond_vertices))
+
+    for epoch in range(1, cfg['max_epoch']):
 
         print('-' * 60)
         print('Epoch: {} / {}'.format(epoch, cfg['max_epoch']))
@@ -50,37 +55,30 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
             running_corrects = 0
             ft_all, lbl_all = None, None
 
-            for i, (centers, corners, normals, neighbor_index, targets, impurity_label) in enumerate(data_loader[phrase]):
+            for i, (input, diamond_center_grid_point, targets, pitch, radius) in enumerate(data_loader[phrase]):
 
                 optimizer.zero_grad()
                 if use_gpu:
-                    centers = Variable(torch.cuda.FloatTensor(centers.cuda()))
-                    corners = Variable(torch.cuda.FloatTensor(corners.cuda()))
-                    normals = Variable(torch.cuda.FloatTensor(normals.cuda()))
-                    neighbor_index = Variable(torch.cuda.LongTensor(neighbor_index.cuda()))
+                    input = Variable(torch.cuda.FloatTensor(input.cuda()))
+                    diamond_center_grid_point = Variable(torch.cuda.LongTensor(diamond_center_grid_point.cuda()))
                     targets = Variable(torch.cuda.FloatTensor(targets.cuda()))
-                    impurity_label = Variable(torch.cuda.FloatTensor(impurity_label.cuda()))
-                    unit_diamond_vertices = Variable(torch.cuda.FloatTensor(unit_diamond_vertices.cuda()))
                 else:
-                    centers = Variable(torch.FloatTensor(centers))
-                    corners = Variable(torch.FloatTensor(corners))
-                    normals = Variable(torch.FloatTensor(normals))
-                    neighbor_index = Variable(torch.LongTensor(neighbor_index))
+                    input = Variable(torch.FloatTensor(input))
+                    diamond_center_grid_point = Variable(torch.LongTensor(diamond_center_grid_point))
                     targets = Variable(torch.FloatTensor(targets))
-                    impurity_label = Variable(torch.FloatTensor(impurity_label))
-                    unit_diamond_vertices = Variable(torch.FloatTensor(unit_diamond_vertices))
                     
                 with torch.set_grad_enabled(phrase == 'train'):
                     eps = 1e-12
-                    outputs, feas = model(centers, corners, normals, neighbor_index, impurity_label)
-                    #loss = criterion(outputs, targets)
-                    #loss = stochastic_loss(criterion, outputs, targets)
-                    loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
+                    #center_probs, pred_rot_scale = model(input,return_encoder_features = True)
+                    center_probs = model(input,return_encoder_features = False)
+                    #loss = regression_classification_loss(center_probs, pred_rot_scale, diamond_center_grid_point, targets[:,3:], alpha=0.5)
+                    loss = unet_loss(center_probs, diamond_center_grid_point, targets[:,3:], alpha=0.5)
+                    #loss = yolo_loss(center_probs, targets, diamond_center_grid_point, unit_diamond_vertices, alpha=1)
                     if phrase == 'train':
                         loss.backward()
                         optimizer.step()
 
-                    running_loss += loss.item() * centers.size(0)
+                    running_loss += loss.item() * input.size(0)
 
             epoch_loss = running_loss / len(data_set[phrase])
 
@@ -93,7 +91,7 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
                 if epoch_loss < best_loss:
                     best_loss = epoch_loss
                     best_model_wts = copy.deepcopy(model.state_dict())
-                if epoch % 2 == 0:
+                if epoch % 1 == 0:
                     torch.save(copy.deepcopy(model.state_dict()), root_path + '/ckpt_root/{}.pkl'.format(epoch))
 
                 print('{} Loss: {:.4f}'.format(phrase, epoch_loss))
@@ -105,18 +103,17 @@ def train_model(model, criterion, optimizer, scheduler, cfg):
 
 if __name__ == '__main__':
 
-    model = MeshNet(cfg=cfg['MeshNet'], require_fea=True)
+    model_cfg = cfg['UNet']
+    scheduler_cfg = cfg['lr_scheduler']
+    model = UNet3D(model_cfg['in_channels'], model_cfg['out_channels'], final_sigmoid=model_cfg['final_sigmoid'], f_maps=model_cfg['f_maps'], layer_order=model_cfg['layer_order'], num_groups=model_cfg['num_groups'], is_segmentation=model_cfg['is_segmentation'])
     if use_gpu:
         model.cuda()
     model = nn.DataParallel(model)
     #model.load_state_dict(torch.load(os.path.join(root_path, cfg['ckpt_root'], 'MeshNet_best.pkl')))
-    criterion = nn.L1Loss()
-    optimizer = optim.SGD(model.parameters(), lr=cfg['lr'], momentum=cfg['momentum'], weight_decay=cfg['weight_decay'])
-    #optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], weight_decay=cfg['weight_decay'])
+    optimizer = optim.Adam(model.parameters(), lr=cfg['lr'], betas = tuple((0.9, 0.999)), weight_decay=cfg['weight_decay'])
+    #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode=scheduler_cfg['mode'], factor=scheduler_cfg['factor'],patience=scheduler_cfg['patience'])
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=cfg['milestones'], gamma=cfg['gamma'])
-
     for f in os.listdir(root_path + '/ckpt_root/'):
         os.remove(os.path.join(root_path + '/ckpt_root/', f))
-
-    best_model_wts = train_model(model, criterion, optimizer, scheduler, cfg)
-    torch.save(best_model_wts, os.path.join(root_path, cfg['ckpt_root'], 'MeshNet_best.pkl'))
+    best_model_wts = train_model(model, optimizer, scheduler, cfg)
+    torch.save(best_model_wts, os.path.join(root_path, cfg['ckpt_root'], 'UNet_best.pkl'))

@@ -5,7 +5,7 @@ cuda_devices: '0'
 dataset:
   data_root: 'diamond_simplified/'
   augment_data: false
-  max_faces: 2000
+  max_faces: 2324
 
 # model
 load_model: 'ckpt/MeshNet_best.pkl'
