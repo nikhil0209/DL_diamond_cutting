@@ -9,7 +9,7 @@ import torch.utils.data as data
 from config import get_test_config
 from data import UNetData
 from models import UNet3D
-from utils import get_unit_diamond_vertices, save_loss_plot, regression_classification_loss, point_wise_L1_loss, axis_aligned_miou, get_output_from_prediction
+from utils import get_unit_diamond_vertices, save_loss_plot, regression_classification_loss, point_wise_L1_loss, axis_aligned_miou, get_output_from_prediction,get_output_from_prediction_new, unet_loss, point_wise_mse_loss
 
 root_path = '../UNet/'
 
@@ -29,6 +29,7 @@ def test_model(model):
     running_center_loss = 0.0
     running_rotation_loss = 0.0
     running_miou = 0.0
+    running_model_loss = 0.0
     unit_diamond_vertices = get_unit_diamond_vertices(root_path)
     if use_gpu:
         unit_diamond_vertices = Variable(torch.cuda.FloatTensor(unit_diamond_vertices.cuda()))
@@ -49,11 +50,15 @@ def test_model(model):
             pitch = torch.tensor(pitch).to(targets)
             radius = torch.tensor(radius).to(targets)
         with torch.no_grad():
-            center_probs, pred_rot_scale = model(input,return_encoder_features = True)
-        model_loss = regression_classification_loss(center_probs, pred_rot_scale, diamond_center_grid_point, targets[:,3:], alpha=0.5)
-        outputs = get_output_from_prediction(center_probs, pred_rot_scale, pitch, radius)
-        loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
-        l1_loss = criterion(outputs, targets)
+            #center_probs, pred_rot_scale = model(input,return_encoder_features = True)
+            center_probs = model(input,return_encoder_features = False)
+        #model_loss = regression_classification_loss(center_probs, pred_rot_scale, diamond_center_grid_point, targets[:,3:], alpha=0.5)
+        model_loss = unet_loss(center_probs, diamond_center_grid_point, targets[:,3:], alpha=0.5)
+        outputs = get_output_from_prediction_new(center_probs, pitch, radius)
+        l1_loss = point_wise_L1_loss(outputs, targets, unit_diamond_vertices)
+        loss = point_wise_mse_loss(outputs, targets, unit_diamond_vertices)
+
+        
         scale_loss = criterion(outputs[:,-1:],targets[:,-1:])
         center_loss = criterion(outputs[:,:3],targets[:,:3])
         rotation_loss = criterion(outputs[:,3:6],targets[:,3:6])
@@ -62,6 +67,7 @@ def test_model(model):
         test_file_path, _ = data_set.data[i]
         test_file_label = test_file_path.split('.')[0] + "_prediction.npy"
         np.save(test_file_label, outputs.detach().cpu().clone().numpy())
+        running_model_loss += model_loss.item()
         running_loss += loss.item()
         running_l1_loss += l1_loss.item()
         running_scale_loss += scale_loss.item()
@@ -69,6 +75,7 @@ def test_model(model):
         running_rotation_loss += rotation_loss.item()
         running_miou += miou.item()
         
+    epoch_model_loss = running_model_loss / len(data_set)
     epoch_loss = running_loss / len(data_set)
     epoch_l1_loss = running_l1_loss / len(data_set)
     epoch_scale_loss = running_scale_loss / len(data_set)
@@ -76,7 +83,8 @@ def test_model(model):
     epoch_rotation_loss = running_rotation_loss / len(data_set)
     epoch_miou = running_miou / len(data_set)
 
-    print('Loss: {:.4f}'.format(float(epoch_loss)))
+    print('Model Loss: {:.4f}'.format(float(epoch_model_loss)))
+    print('MSE Loss: {:.4f}'.format(float(epoch_loss)))
     print('L1 Loss: {:.4f}'.format(float(epoch_l1_loss)))
     print('Scale L1 Loss: {:.4f}'.format(float(epoch_scale_loss)))
     print('Center L1 Loss: {:.4f}'.format(float(epoch_center_loss)))

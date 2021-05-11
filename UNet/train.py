@@ -8,7 +8,7 @@ import torch.utils.data as data
 from config import get_train_config
 from data import UNetData
 from models import UNet3D
-from utils import get_unit_diamond_vertices, save_loss_plot, regression_classification_loss#, point_wise_L1_loss
+from utils import get_unit_diamond_vertices, save_loss_plot, regression_classification_loss, unet_loss, yolo_loss#, point_wise_L1_loss
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
@@ -69,8 +69,11 @@ def train_model(model, optimizer, scheduler, cfg):
                     
                 with torch.set_grad_enabled(phrase == 'train'):
                     eps = 1e-12
-                    center_probs, pred_rot_scale = model(input,return_encoder_features = True)
-                    loss = regression_classification_loss(center_probs, pred_rot_scale, diamond_center_grid_point, targets[:,3:], alpha=0.5)
+                    #center_probs, pred_rot_scale = model(input,return_encoder_features = True)
+                    center_probs = model(input,return_encoder_features = False)
+                    #loss = regression_classification_loss(center_probs, pred_rot_scale, diamond_center_grid_point, targets[:,3:], alpha=0.5)
+                    loss = unet_loss(center_probs, diamond_center_grid_point, targets[:,3:], alpha=0.5)
+                    #loss = yolo_loss(center_probs, targets, diamond_center_grid_point, unit_diamond_vertices, alpha=1)
                     if phrase == 'train':
                         loss.backward()
                         optimizer.step()

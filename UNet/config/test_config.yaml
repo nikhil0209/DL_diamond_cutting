@@ -3,7 +3,7 @@ cuda_devices: '0'
 
 # dataset
 dataset:
-  data_root: 'diamond_voxelized/'
+  data_root: 'augmented_diamond_voxelized_64/'
   augment_data: false
   grid: 32
 
@@ -22,11 +22,11 @@ UNet:
   # number of input channels to the model
   in_channels: 1
   # number of output channels
-  out_channels: 1
+  out_channels: 5
   # determines the order of operators in a single layer (gcr - GroupNorm+Conv3d+ReLU)
   layer_order: gcr
   # number of features at each level of the U-Net
-  f_maps: [32, 64, 128, 256]
+  f_maps: [32, 64, 128]
   # number of groups in the groupnorm
   num_groups: 8
   # apply element-wise nn.Sigmoid after the final 1x1 convolution, otherwise apply nn.Softmax
