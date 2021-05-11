@@ -5,7 +5,7 @@ cuda_devices: '0'   # multi-gpu training is available
 dataset:
   data_root: 'augmented_diamond_voxelized_64/'
   augment_data: true
-  grid: 32
+  grid: 64
 
 # result
 ckpt_root: 'ckpt/'
