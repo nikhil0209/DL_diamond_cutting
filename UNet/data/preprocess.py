@@ -10,7 +10,7 @@ if __name__ == '__main__':
     root = '../split_dataset/'
     new_root = '../UNet/diamond_voxelized/'
     max_faces = 0
-    resolution = 30
+    resolution = 62
     radius = math.ceil(resolution/2)-1
     center = [0,0,0]
     for type in os.listdir(root):
